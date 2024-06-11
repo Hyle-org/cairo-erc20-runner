@@ -3,6 +3,7 @@ use cairo1_run::{cairo_run_program, Cairo1RunConfig, error::Error, FuncArg};
 use cairo_lang_compiler::{compile_prepared_db, db::RootDatabase, project::setup_project, CompilerConfig};
 use cairo_vm::{air_public_input::PublicInputError, types::layout_name::LayoutName, vm::errors::trace_errors::TraceError, Felt252};
 use serde_json;
+use serde::Serialize;
 use std::{env, io::{self, Write}, path::PathBuf};
 
 fn main() -> Result<(), Error> {
@@ -119,7 +120,10 @@ fn main() -> Result<(), Error> {
         cairo_vm::cairo_run::write_encoded_memory(&runner.relocated_memory, &mut memory_writer)?;
         memory_writer.flush()?;
     }
-    println!("{:?}", serialized_output);
+
+    let deser = HyleOutput::deserialize(&serialized_output.unwrap());
+    println!("{:?}", serde_json::to_string(&deser).unwrap());
+
     Ok(())
 }
 
@@ -223,4 +227,56 @@ fn process_array<'a>(iter: &mut impl Iterator<Item = &'a str>) -> Result<FuncArg
         }
     }
     Ok(FuncArg::Array(array))
+}
+
+#[derive(Serialize)]
+struct Event {
+    from: String,
+    to: String,
+    amount: i64,
+}
+
+#[derive(Serialize)]
+struct HyleOutput {
+    event: Event,
+    next_state: String,
+}
+
+impl HyleOutput {
+    /// BytesArray serialisation is composed of 3 values (if the data is less than 31bytes)
+    /// https://github.com/starkware-libs/cairo/blob/main/corelib/src/byte_array.cairo#L24-L34
+    /// TODO: Make deserialization adaptable to words >31bytes
+    fn deserialize_cairo_bytesarray(_pending_word: String, data: String, _word_len: String) -> String {
+        let data_int = data.parse::<i32>().expect("failed to parse the address");
+        let data_hex = hex::decode(format!("{:x}", data_int)).expect("failed to parse the address");
+        String::from_utf8(data_hex).expect("failed to parse the address")
+    }
+
+    /// Deserialize the output of the cairo erc20 contract.
+    /// [0:2] elements will be the "from" address
+    /// [3:5] elements will be the "to" address
+    /// [6] element will be the amount transfered
+    /// [7] element will be the next state
+    fn deserialize(input: &str) -> Self {
+        let trimmed = input.trim_matches(|c| c == '[' || c == ']');
+        let parts: Vec<&str> = trimmed.split_whitespace().collect();
+        // let parts_strings: Vec<String> = parts.iter().map(|&s|s.into()).collect();
+
+        let from_pending_word: String = parts[0].into();
+        let from_data: String = parts[1].into();
+        let from_word_len: String = parts[2].into();
+
+        let to_pending_word: String = parts[3].into();
+        let to_data: String = parts[4].into();
+        let to_word_len: String = parts[5].into();
+
+        let from = Self::deserialize_cairo_bytesarray(from_pending_word, from_data, from_word_len);
+        let to = Self::deserialize_cairo_bytesarray(to_pending_word, to_data, to_word_len);
+        let amount = parts[6].parse::<i64>().unwrap();
+        let next_state: String = parts[7].into();
+        HyleOutput {
+            event: Event {from: from.into(), to: to.into(), amount},
+            next_state
+        }
+    }
 }

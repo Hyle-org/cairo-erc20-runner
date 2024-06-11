@@ -799,6 +799,8 @@ dependencies = [
  "cairo-vm",
  "cairo1-run",
  "clap",
+ "hex",
+ "serde",
  "serde_json",
 ]
 

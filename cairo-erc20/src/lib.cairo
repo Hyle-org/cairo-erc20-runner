@@ -49,6 +49,19 @@ struct Account {
     amount: u64,
 }
 
+#[derive(Serde, Drop, Clone, Debug)]
+struct Event {
+    from: ByteArray,
+    to: ByteArray,
+    amount: u64,
+}
+
+#[derive(Serde, Drop, Clone, Debug)]
+struct HyleOutput {
+    event: Event,
+    next_state: felt252
+}
+
 fn get_account(balances: @Array<Account>, account_name: @ByteArray) -> Option<@Account> {
     let nb_of_accounts: usize = balances.len();
     let mut n = 0;
@@ -130,16 +143,25 @@ fn main(input: Array<felt252>) -> Array<felt252> {
         }
     };
   
-    // // Change balances
+    // Change balances
     assert!(*from_balance >= amount, "Does not have enough funds"); // Potential overflow
 
-    let balances1 = update_account(balances, Account {name: from, amount: *from_balance - amount});
-    let balances2 = update_account(balances1, Account {name: to, amount: *to_balance + amount});
+    let balances1 = update_account(balances, Account {name: from.clone(), amount: *from_balance - amount});
+    let balances2 = update_account(balances1, Account {name: to.clone(), amount: *to_balance + amount});
 
-    // // Next state compute
+    // Next state compute
     let computed_final_state = compute_state(@balances2);
 
+    // Transfer event
+    let event = Event { from: from.clone(), to: to.clone(), amount: amount };
+
+    // HyleOutput
+    let hyle_output = HyleOutput {
+        event: event,
+        next_state: computed_final_state
+    };
+
     let mut output: Array<felt252> = ArrayTrait::new();
-    computed_final_state.serialize(ref output);
+    hyle_output.serialize(ref output);
     output
 }
