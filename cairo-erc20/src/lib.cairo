@@ -58,8 +58,13 @@ struct Event {
 
 #[derive(Serde, Drop, Clone, Debug)]
 struct HyleOutput {
-    event: Event,
-    next_state: felt252
+    version: u32,
+    initial_state: felt252,
+    next_state: felt252,
+    origin: ByteArray,
+    caller: ByteArray,
+    tx_hash: felt252,
+    program_outputs: Event
 }
 
 fn get_account(balances: @Array<Account>, account_name: @ByteArray) -> Option<@Account> {
@@ -157,8 +162,13 @@ fn main(input: Array<felt252>) -> Array<felt252> {
 
     // HyleOutput
     let hyle_output = HyleOutput {
-        event: event,
-        next_state: computed_final_state
+        version: 1,
+        initial_state: initial_state,
+        next_state: computed_final_state,
+        origin: "",
+        caller: "",
+        tx_hash: 0,
+        program_outputs: event,
     };
 
     let mut output: Array<felt252> = ArrayTrait::new();

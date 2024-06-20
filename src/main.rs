@@ -2,38 +2,41 @@ use bincode::enc::write::Writer;
 use cairo1_run::{cairo_run_program, Cairo1RunConfig, error::Error, FuncArg};
 use cairo_lang_compiler::{compile_prepared_db, db::RootDatabase, project::setup_project, CompilerConfig};
 use cairo_vm::{air_public_input::PublicInputError, types::layout_name::LayoutName, vm::errors::trace_errors::TraceError, Felt252};
+use hyle_contract::HyleOutput;
 use num::BigInt;
 use serde_json;
 use serde::Serialize;
-use std::{env, io::{self, Write}, path::PathBuf};
+use std::{fs::File, io::{self, BufWriter, Write}, path::PathBuf};
+use clap::Parser;
+
+#[derive(Parser)]
+struct Cli {
+    cairo_program_path: String,
+    program_inputs_path: String,
+    trace_bin_path: String,
+    memory_bin_path: String,
+    output_path: String,
+}
+
 
 fn main() -> Result<(), Error> {
-    let args: Vec<String> = env::args().collect();
-    if args.len() != 5 {
-        eprintln!("Usage: {} <cairo_program_path> <trace_path> <memory_path> <program_inputs_path>", args[0]);
-        std::process::exit(1);
-    }
-
-    let cairo_program_path = &args[1];
-    let trace_path = &args[2];
-    let memory_path = &args[3];
-    let program_inputs_path = &args[4];
+    let cli_args = Cli::parse();
 
     let args = Args {
-        trace_file: Some(PathBuf::from(trace_path)),
-        memory_file: Some(PathBuf::from(memory_path)),
+        trace_file: Some(PathBuf::from(cli_args.trace_bin_path)),
+        memory_file: Some(PathBuf::from(cli_args.memory_bin_path)),
         layout: "all_cairo".to_string(),
         proof_mode: true,
         air_public_input: None,
         air_private_input: None,
         cairo_pie_output: None,
-        args: process_args(&std::fs::read_to_string(program_inputs_path)?).unwrap(),
+        args: process_args(&std::fs::read_to_string(cli_args.program_inputs_path)?).unwrap(),
         print_output: false,
         append_return_values: false,
     };
     
     // Try to parse the file as a sierra program
-    let file = std::fs::read(&cairo_program_path).expect("Failed to load cairo file");
+    let file = std::fs::read(&cli_args.cairo_program_path).expect("Failed to load cairo file");
     let sierra_program = match serde_json::from_slice(&file) {
         Ok(program) => program,
         Err(_) => {
@@ -47,7 +50,7 @@ fn main() -> Result<(), Error> {
                 .skip_auto_withdraw_gas()
                 .build()
                 .unwrap();
-            let main_crate_ids = setup_project(&mut db, &PathBuf::from(&cairo_program_path)).unwrap();
+            let main_crate_ids = setup_project(&mut db, &PathBuf::from(&cli_args.cairo_program_path)).unwrap();
             compile_prepared_db(&mut db, main_crate_ids, compiler_config).unwrap()
         }
     };
@@ -63,7 +66,7 @@ fn main() -> Result<(), Error> {
         finalize_builtins: false, // TODO: investigate if we want it ?
         append_return_values: false, // TODO: investigate if we want it ?
     };
-    
+
     let (runner, _, serialized_output) = cairo_run_program(&sierra_program, cairo_run_config)?;
 
     if let Some(file_path) = args.air_public_input {
@@ -123,7 +126,11 @@ fn main() -> Result<(), Error> {
     }
 
     let deser = HyleOutput::deserialize(&serialized_output.unwrap());
-    println!("{:?}", serde_json::to_string(&deser).unwrap());
+
+    let file = File::create(cli_args.output_path)?;
+    let mut writer = BufWriter::new(file);
+    serde_json::to_writer(&mut writer, &deser).expect("Failed to deserialize the output");
+    writer.flush()?;
 
     Ok(())
 }
@@ -236,14 +243,13 @@ struct Event {
     to: String,
     amount: u64,
 }
-
-#[derive(Serialize)]
-struct HyleOutput {
-    event: Event,
-    next_state: String,
+trait DeserializeHyleOutput {
+    fn i_to_w(s: String) -> String;
+    fn deserialize_cairo_bytesarray(data: &mut Vec<&str>) -> String;
+    fn deserialize(input: &str) -> Self;
 }
 
-impl HyleOutput {
+impl DeserializeHyleOutput for HyleOutput<Event> {
     /// Receives an int, change base to hex, decode it to ascii
     fn i_to_w(s: String) -> String {
         let int = s.parse::<BigInt>().expect("failed to parse the address");
@@ -262,7 +268,9 @@ impl HyleOutput {
         let mut word: String = "".into();
         for _ in 0..pending_word+1 {
             let d: String = data.remove(0).into();
-            word.push_str(&Self::i_to_w(d));
+            if d != "0"{
+                word.push_str(&Self::i_to_w(d));
+            }
         }
         word
     }
@@ -275,16 +283,35 @@ impl HyleOutput {
     fn deserialize(input: &str) -> Self {
         let trimmed = input.trim_matches(|c| c == '[' || c == ']');
         let mut parts: Vec<&str> = trimmed.split_whitespace().collect();
+        // extract version
+        let version = parts.remove(0).parse::<u32>().unwrap();
+        // extract initial_state
+        let initial_state: String = parts.remove(0).parse::<String>().unwrap();
+        // extract next_state
+        let next_state: String = parts.remove(0).parse::<String>().unwrap();
+        // extract origin
+        let origin: String = Self::deserialize_cairo_bytesarray(&mut parts);
+        // extract caller
+        let caller: String = Self::deserialize_cairo_bytesarray(&mut parts);
+        // extract tx_hash
+        let tx_hash: String = parts.remove(0).parse::<String>().unwrap();
+        // extract from
         let from = Self::deserialize_cairo_bytesarray(&mut parts);
+        // extract to
         let to = Self::deserialize_cairo_bytesarray(&mut parts);
         // extract amount
         let amount = parts.remove(0).parse::<u64>().unwrap();
-        // extract next_state
-        let next_state: String = parts.remove(0).parse::<String>().unwrap();
 
         HyleOutput {
-            event: Event {from, to, amount},
-            next_state
+            version,
+            initial_state: initial_state.as_bytes().to_vec(),
+            next_state: next_state.as_bytes().to_vec(),
+            origin,
+            caller,
+            block_number: 0,
+            block_time: 0,
+            tx_hash: tx_hash.as_bytes().to_vec(),
+            program_outputs: Event {from, to, amount}
         }
     }
 }

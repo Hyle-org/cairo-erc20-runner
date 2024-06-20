@@ -1,15 +1,16 @@
 [package]
-name = "cairo_runner"
+name = "cairo-runner"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+clap = { version = "4.4.6", features = ["derive"] }
 cairo-lang-compiler = { version = "2.6.3", default-features = false }
 cairo1-run = { git = "https://github.com/lambdaclass/cairo-vm.git", rev = "bf275577" }
 cairo-vm = { git = "https://github.com/lambdaclass/cairo-vm.git", rev = "bf275577", features = [
      "std",
 ]}
-clap = { version = "4.3.10", features = ["derive"] }
+hyle_contract = { git = "https://github.com/hyle-org/verifiers-for-hyle.git", branch = "main" }
 serde = "1.0.203"
 serde_json = "1.0.111"
 bincode = { version = "2.0.0-rc.3", default-features = false }
