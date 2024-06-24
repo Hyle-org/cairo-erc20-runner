@@ -1,130 +1,113 @@
 use bincode::enc::write::Writer;
 use cairo1_run::{cairo_run_program, Cairo1RunConfig, error::Error, FuncArg};
 use cairo_lang_compiler::{compile_prepared_db, db::RootDatabase, project::setup_project, CompilerConfig};
-use cairo_vm::{air_public_input::PublicInputError, types::layout_name::LayoutName, vm::errors::trace_errors::TraceError, Felt252};
+use cairo_vm::{types::layout_name::LayoutName, vm::{errors::trace_errors::TraceError, trace::trace_entry::RelocatedTraceEntry}, Felt252};
 use hyle_contract::HyleOutput;
 use num::BigInt;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{fs::File, io::{self, BufWriter, Write}, path::PathBuf};
 use wasm_bindgen::prelude::*;
 
 pub mod error;
 
-#[wasm_bindgen]
-pub fn cairo_run(trace_bin_path: &str, memory_bin_path: &str, program_inputs_path: &str, cairo_program_path: &str, output_path: &str) -> Result<(), error::RunnerError> {
+#[derive(Serialize, Deserialize)]
+pub struct CairoRunOutput {
+    pub trace: Vec<RelocatedTraceEntry>,
+    pub memory: Vec<Option<Felt252>>,
+    pub output: HyleOutput<Event>
+}
 
-    let args = Args {
-        trace_file: Some(PathBuf::from(trace_bin_path)),
-        memory_file: Some(PathBuf::from(memory_bin_path)),
-        layout: "all_cairo".to_string(),
-        proof_mode: true,
-        air_public_input: None,
-        air_private_input: None,
-        cairo_pie_output: None,
-        args: process_args(&std::fs::read_to_string(program_inputs_path)?).unwrap(),
-        print_output: false,
-        append_return_values: false,
-    };
-    
-    // Try to parse the file as a sierra program
-    let file = std::fs::read(cairo_program_path).expect("Failed to load cairo file");
-    let sierra_program = match serde_json::from_slice(&file) {
-        Ok(program) => program,
-        Err(_) => {
-            // If it fails, try to compile it as a cairo program
-            let compiler_config = CompilerConfig {
-                replace_ids: true,
-                ..CompilerConfig::default()
-            };
-            let mut db = RootDatabase::builder()
-                .detect_corelib()
-                .skip_auto_withdraw_gas()
-                .build()
-                .unwrap();
-            let main_crate_ids = setup_project(&mut db, &PathBuf::from(cairo_program_path)).unwrap();
-            compile_prepared_db(&mut db, main_crate_ids, compiler_config).unwrap()
-        }
-    };
-
+pub fn cairo_run(serialized_sierra_program: &str, program_inputs: &str) -> Result<CairoRunOutput, error::RunnerError> {
+    let sierra_program = serde_json::from_str(&serialized_sierra_program)?;
+    let inputs = process_args(&program_inputs).unwrap();
 
     let cairo_run_config = Cairo1RunConfig {
-        args: &args.args.0, //inputs
+        args: &inputs.0,
         serialize_output: true,
         trace_enabled: true,
         relocate_mem: true,
         layout: LayoutName::all_cairo,
         proof_mode: true,
-        finalize_builtins: false, // TODO: investigate if we want it ?
-        append_return_values: false, // TODO: investigate if we want it ?
+        finalize_builtins: false,
+        append_return_values: false,
     };
 
     let (runner, _, serialized_output) = cairo_run_program(&sierra_program, cairo_run_config)?;
 
-    if let Some(file_path) = args.air_public_input {
-        let json = runner.get_air_public_input()?.serialize_json()?;
-        std::fs::write(file_path, json)?;
-    }
-
-    if let (Some(file_path), Some(trace_file), Some(memory_file)) = (
-        args.air_private_input,
-        args.trace_file.clone(),
-        args.memory_file.clone(),
-    ) {
-        // Get absolute paths of trace_file & memory_file
-        let trace_path = trace_file
-            .as_path()
-            .canonicalize()
-            .unwrap_or(trace_file.clone())
-            .to_string_lossy()
-            .to_string();
-        let memory_path = memory_file
-            .as_path()
-            .canonicalize()
-            .unwrap_or(memory_file.clone())
-            .to_string_lossy()
-            .to_string();
-
-        let json = runner
-            .get_air_private_input()
-            .to_serializable(trace_path, memory_path)
-            .serialize_json()
-            .map_err(PublicInputError::Serde)?;
-        std::fs::write(file_path, json)?;
-    }
-
-    if let Some(ref file_path) = args.cairo_pie_output {
-        runner.get_cairo_pie()?.write_zip_file(file_path)?
-    }
-
-    if let Some(trace_path) = args.trace_file {
-        let relocated_trace = runner
-            .relocated_trace
-            .ok_or(Error::Trace(TraceError::TraceNotRelocated))?;
-        let trace_file = std::fs::File::create(trace_path)?;
-        let mut trace_writer =
-            FileWriter::new(io::BufWriter::with_capacity(3 * 1024 * 1024, trace_file));
-
-        cairo_vm::cairo_run::write_encoded_trace(&relocated_trace, &mut trace_writer)?;
-        trace_writer.flush()?;
-    }
-    if let Some(memory_path) = args.memory_file {
-        let memory_file = std::fs::File::create(memory_path)?;
-        let mut memory_writer =
-            FileWriter::new(io::BufWriter::with_capacity(5 * 1024 * 1024, memory_file));
-
-        cairo_vm::cairo_run::write_encoded_memory(&runner.relocated_memory, &mut memory_writer)?;
-        memory_writer.flush()?;
-    }
+    let relocated_trace: Vec<RelocatedTraceEntry> = runner
+        .relocated_trace
+        .ok_or(Error::Trace(TraceError::TraceNotRelocated))?;
 
     let deser = <HyleOutput<Event> as DeserializableHyleOutput>::deserialize(&serialized_output.unwrap());
 
-    let file = File::create(output_path)?;
-    let mut writer = BufWriter::new(file);
-    serde_json::to_writer(&mut writer, &deser).expect("Failed to deserialize the output");
-    writer.flush()?;
-    Ok(())
+    let cairo_run_output = CairoRunOutput{
+        trace: relocated_trace,
+        memory: runner.relocated_memory,
+        output: deser
+    };
+
+    Ok(cairo_run_output)
 }
 
+
+#[wasm_bindgen]
+pub fn wasm_cairo_run(serialized_sierra_program: String, program_inputs: &str) -> Result<JsValue, error::RunnerError> {
+    let cairo_run_output = cairo_run(&serialized_sierra_program, program_inputs)?;
+    Ok(serde_wasm_bindgen::to_value(&cairo_run_output).unwrap())
+}
+
+
+pub fn cairo_run_from_cli(trace_bin_path: &str, memory_bin_path: &str, program_inputs_path: &str, cairo_program_path: &str, output_path: &str, sierra_path: &str) -> Result<(), error::RunnerError> {
+
+    // Try to parse the file as a sierra program
+    let program_inputs = std::fs::read_to_string(program_inputs_path)?;
+
+    // Compile cairo program
+    let compiler_config = CompilerConfig {
+        replace_ids: true,
+        ..CompilerConfig::default()
+    };
+    let mut db = RootDatabase::builder()
+        .detect_corelib()
+        .skip_auto_withdraw_gas()
+        .build()
+        .unwrap();
+    let main_crate_ids = setup_project(&mut db, &PathBuf::from(cairo_program_path)).unwrap();
+    let sierra_program = compile_prepared_db(&mut db, main_crate_ids, compiler_config).unwrap();
+
+
+    // TODO: le save dans un fichier pour que le front puisse l'utiliser en static
+    // let serialized_sierra_program: Vec<u8> = bincode::serde::encode_to_vec(&sierra_program, bincode::config::standard())?;
+    let serialized_sierra_program: String = serde_json::to_string(&sierra_program)?;
+    // Save serialized sierra program
+    let file = std::fs::File::create(&sierra_path)?;
+    let mut sierra_writer = BufWriter::new(file);
+    serde_json::to_writer(&mut sierra_writer, &serialized_sierra_program).expect("failed to save sierra program");
+    sierra_writer.flush()?;
+
+
+    let cairo_run_output = cairo_run(&serialized_sierra_program, &program_inputs)?;
+
+    // Save trace file
+    let trace_file = std::fs::File::create(trace_bin_path)?;
+    let mut trace_writer = FileWriter::new(io::BufWriter::with_capacity(3 * 1024 * 1024, trace_file));
+    cairo_vm::cairo_run::write_encoded_trace(&cairo_run_output.trace, &mut trace_writer)?;
+    trace_writer.flush()?;
+
+    // Save memory file
+    let memory_file = std::fs::File::create(memory_bin_path)?;
+    let mut memory_writer =  FileWriter::new(io::BufWriter::with_capacity(5 * 1024 * 1024, memory_file));
+    cairo_vm::cairo_run::write_encoded_memory(&cairo_run_output.memory, &mut memory_writer)?;
+    memory_writer.flush()?;
+
+    // Save output file
+    let file = File::create(output_path)?;
+    let mut writer = BufWriter::new(file);
+    serde_json::to_writer(&mut writer, &cairo_run_output.output).expect("Failed to deserialize the output");
+    writer.flush()?;
+
+    Ok(())
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct FuncArgs(pub Vec<FuncArg>);
@@ -148,7 +131,7 @@ pub struct FileWriter {
     bytes_written: usize,
 }
 
-#[derive(Serialize)]
+#[derive(Deserialize, Serialize)]
 pub struct Event {
     from: String,
     to: String,
