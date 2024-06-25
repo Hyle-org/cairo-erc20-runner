@@ -64,13 +64,11 @@ pub fn cairo_run_from_cli(trace_bin_path: &str, memory_bin_path: &str, program_i
     let sierra_program = compile_prepared_db(&mut db, main_crate_ids, compiler_config).unwrap();
 
 
-    // TODO: le save dans un fichier pour que le front puisse l'utiliser en static
-    // let serialized_sierra_program: Vec<u8> = bincode::serde::encode_to_vec(&sierra_program, bincode::config::standard())?;
     let serialized_sierra_program: String = serde_json::to_string(&sierra_program)?;
     // Save serialized sierra program
     let file = std::fs::File::create(&sierra_path)?;
     let mut sierra_writer = BufWriter::new(file);
-    serde_json::to_writer(&mut sierra_writer, &serialized_sierra_program).expect("failed to save sierra program");
+    sierra_writer.write_all(serialized_sierra_program.as_bytes())?;
     sierra_writer.flush()?;
 
 
