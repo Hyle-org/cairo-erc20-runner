@@ -700,8 +700,6 @@ dependencies = [
  "clap",
  "console_error_panic_hook",
  "hex",
- "hyle_contract",
- "num",
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
@@ -1225,14 +1223,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hyle_contract"
-version = "0.1.0"
-source = "git+https://github.com/hyle-org/verifiers-for-hyle.git?branch=main#59226cfb0564109f1b100190108b1abbbc186db6"
-dependencies = [
- "serde",
-]
-
-[[package]]
 name = "id-arena"
 version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1490,7 +1480,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac06db03ec2f46ee0ecdca1a1c34a99c0d188a0d83439b84bf0cb4b386e4ab09"
 dependencies = [
  "matrixmultiply",
- "num-complex 0.2.4",
+ "num-complex",
  "num-integer",
  "num-traits 0.2.19",
  "rawpointer",
@@ -1510,20 +1500,6 @@ checksum = "d273983c5a657a70a3e8f2a01329822f3b8c8172b73826411a55751e404a0a4a"
 dependencies = [
  "memchr",
  "minimal-lexical",
-]
-
-[[package]]
-name = "num"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35bd024e8b2ff75562e5f34e7f4905839deb4b22955ef5e73d2fea1b9813cb23"
-dependencies = [
- "num-bigint",
- "num-complex 0.4.6",
- "num-integer",
- "num-iter",
- "num-rational",
- "num-traits 0.2.19",
 ]
 
 [[package]]
@@ -1549,31 +1525,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "num-complex"
-version = "0.4.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73f88a1307638156682bada9d7604135552957b7818057dcef22705b4d509495"
-dependencies = [
- "num-traits 0.2.19",
-]
-
-[[package]]
 name = "num-integer"
 version = "0.1.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7969661fd2958a5cb096e56c8e1ad0444ac2bbcd0061bd28660485a44879858f"
 dependencies = [
- "num-traits 0.2.19",
-]
-
-[[package]]
-name = "num-iter"
-version = "0.1.45"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1429034a0490724d0075ebb2bc9e875d6503c3cf69e235a8941aa757d83ef5bf"
-dependencies = [
- "autocfg",
- "num-integer",
  "num-traits 0.2.19",
 ]
 
@@ -1602,17 +1558,6 @@ dependencies = [
  "num-modular",
  "num-traits 0.2.19",
  "rand",
-]
-
-[[package]]
-name = "num-rational"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f83d14da390562dca69fc84082e73e548e1ad308d24accdedd2720017cb37824"
-dependencies = [
- "num-bigint",
- "num-integer",
- "num-traits 0.2.19",
 ]
 
 [[package]]
@@ -2187,7 +2132,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec63571489873d4506683915840eeb1bb16b3198ee4894cc6f2fe3013d505e56"
 dependencies = [
  "ndarray",
- "num-complex 0.2.4",
+ "num-complex",
  "num-traits 0.1.43",
 ]
 
