@@ -1,19 +1,18 @@
 use bincode::enc::write::Writer;
 use cairo1_run::{cairo_run_program, Cairo1RunConfig, error::Error, FuncArg};
 use cairo_lang_compiler::{compile_prepared_db, db::RootDatabase, project::setup_project, CompilerConfig};
-use cairo_vm::{types::layout_name::LayoutName, vm::{errors::trace_errors::TraceError, trace::trace_entry::RelocatedTraceEntry}, Felt252};
+use cairo_vm::{types::layout_name::LayoutName, vm::{self, errors::trace_errors::TraceError, trace::trace_entry::RelocatedTraceEntry}, Felt252};
 use hyle_contract::HyleOutput;
 use num::BigInt;
 use serde::{Deserialize, Serialize};
 use std::{fs::File, io::{self, BufWriter, Write}, path::PathBuf};
-use wasm_bindgen::prelude::*;
 
 pub mod error;
 
 #[derive(Serialize, Deserialize)]
 pub struct CairoRunOutput {
-    pub trace: Vec<RelocatedTraceEntry>,
-    pub memory: Vec<Option<Felt252>>,
+    pub trace: Vec<u8>,
+    pub memory: Vec<u8>,
     pub output: HyleOutput<Event>
 }
 
@@ -41,19 +40,12 @@ pub fn cairo_run(serialized_sierra_program: &str, program_inputs: &str) -> Resul
     let deser = <HyleOutput<Event> as DeserializableHyleOutput>::deserialize(&serialized_output.unwrap());
 
     let cairo_run_output = CairoRunOutput{
-        trace: relocated_trace,
-        memory: runner.relocated_memory,
+        trace: encode_trace(&relocated_trace),
+        memory: encode_memory(&runner.relocated_memory),
         output: deser
     };
 
     Ok(cairo_run_output)
-}
-
-
-#[wasm_bindgen]
-pub fn wasm_cairo_run(serialized_sierra_program: String, program_inputs: &str) -> Result<JsValue, error::RunnerError> {
-    let cairo_run_output = cairo_run(&serialized_sierra_program, program_inputs)?;
-    Ok(serde_wasm_bindgen::to_value(&cairo_run_output).unwrap())
 }
 
 
@@ -91,19 +83,19 @@ pub fn cairo_run_from_cli(trace_bin_path: &str, memory_bin_path: &str, program_i
     // Save trace file
     let trace_file = std::fs::File::create(trace_bin_path)?;
     let mut trace_writer = FileWriter::new(io::BufWriter::with_capacity(3 * 1024 * 1024, trace_file));
-    cairo_vm::cairo_run::write_encoded_trace(&cairo_run_output.trace, &mut trace_writer)?;
+    trace_writer.write(&cairo_run_output.trace)?;
     trace_writer.flush()?;
 
     // Save memory file
     let memory_file = std::fs::File::create(memory_bin_path)?;
     let mut memory_writer =  FileWriter::new(io::BufWriter::with_capacity(5 * 1024 * 1024, memory_file));
-    cairo_vm::cairo_run::write_encoded_memory(&cairo_run_output.memory, &mut memory_writer)?;
+    memory_writer.write(&cairo_run_output.memory)?;
     memory_writer.flush()?;
 
     // Save output file
     let file = File::create(output_path)?;
     let mut writer = BufWriter::new(file);
-    serde_json::to_writer(&mut writer, &cairo_run_output.output).expect("Failed to deserialize the output");
+    serde_json::to_writer(&mut writer, &cairo_run_output.output)?;
     writer.flush()?;
 
     Ok(())
@@ -290,4 +282,37 @@ pub fn process_array<'a>(iter: &mut impl Iterator<Item = &'a str>) -> Result<Fun
         }
     }
     Ok(FuncArg::Array(array))
+}
+
+/// Writes the trace binary representation.
+///
+/// Bincode encodes to little endian by default and each trace entry is composed of
+/// 3 usize values that are padded to always reach 64 bit size.
+pub fn encode_trace(relocated_trace: &[vm::trace::trace_entry::RelocatedTraceEntry]) -> Vec<u8> {
+    let mut trace_bytes: Vec<u8> = vec![];
+    for (i, entry) in relocated_trace.iter().enumerate() {
+        trace_bytes.extend(&((entry.ap as u64).to_le_bytes()));
+        trace_bytes.extend(&((entry.fp as u64).to_le_bytes()));
+        trace_bytes.extend(&((entry.pc as u64).to_le_bytes()));
+    }
+    trace_bytes
+}
+
+/// Writes a binary representation of the relocated memory.
+///
+/// The memory pairs (address, value) are encoded and concatenated:
+/// * address -> 8-byte encoded
+/// * value -> 32-byte encoded
+pub fn encode_memory(relocated_memory: &[Option<Felt252>]) -> Vec<u8>{
+    let mut memory_bytes: Vec<u8> = vec![];
+    for (i, memory_cell) in relocated_memory.iter().enumerate() {
+        match memory_cell {
+            None => continue,
+            Some(unwrapped_memory_cell) => {
+                memory_bytes.extend(&(i as u64).to_le_bytes());
+                memory_bytes.extend(&unwrapped_memory_cell.to_bytes_le());
+            }
+        }
+    }
+    memory_bytes
 }
