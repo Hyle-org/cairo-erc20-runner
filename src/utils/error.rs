@@ -9,7 +9,7 @@ pub enum RunnerError{
 // See https://rustwasm.github.io/wasm-bindgen/reference/types/result.html
 impl Into<JsValue> for RunnerError {
     fn into(self) -> JsValue {
-        JsValue::from_str("runner failed")
+        JsValue::from_str(&format!("{:?}", self))
     }
 }
 
