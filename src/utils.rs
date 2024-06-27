@@ -47,22 +47,27 @@ pub fn cairo_run(serialized_sierra_program: &str, program_inputs: &str) -> Resul
 
 pub fn cairo_run_from_cli(trace_bin_path: &str, memory_bin_path: &str, program_inputs_path: &str, cairo_program_path: &str, output_path: &str, sierra_path: &str) -> Result<(), error::RunnerError> {
 
-    // Try to parse the file as a sierra program
     let program_inputs = std::fs::read_to_string(program_inputs_path)?;
 
-    // Compile cairo program
-    let compiler_config = CompilerConfig {
-        replace_ids: true,
-        ..CompilerConfig::default()
+    // Try to parse the file as a sierra program
+    let file = std::fs::read(&cairo_program_path)?;
+    let sierra_program = match serde_json::from_slice(&file) {
+        Ok(program) => program,
+        Err(_) => {
+            // If it fails, try to compile it as a cairo program
+            let compiler_config = CompilerConfig {
+                replace_ids: true,
+                ..CompilerConfig::default()
+            };
+            let mut db = RootDatabase::builder()
+                .detect_corelib()
+                .skip_auto_withdraw_gas()
+                .build()
+                .unwrap();
+            let main_crate_ids = setup_project(&mut db, &PathBuf::from(cairo_program_path)).unwrap();
+            compile_prepared_db(&mut db, main_crate_ids, compiler_config).unwrap()
+        }
     };
-    let mut db = RootDatabase::builder()
-        .detect_corelib()
-        .skip_auto_withdraw_gas()
-        .build()
-        .unwrap();
-    let main_crate_ids = setup_project(&mut db, &PathBuf::from(cairo_program_path)).unwrap();
-    let sierra_program = compile_prepared_db(&mut db, main_crate_ids, compiler_config).unwrap();
-
 
     let serialized_sierra_program: String = serde_json::to_string(&sierra_program)?;
     // Save serialized sierra program
