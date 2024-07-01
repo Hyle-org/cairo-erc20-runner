@@ -1,9 +1,7 @@
 import { BarretenbergBackend, CompiledCircuit  } from '@noir-lang/backend_barretenberg';
 import { InputMap, Noir } from '@noir-lang/noir_js';
 import * as fs from 'fs';
-import * as dotenv from 'dotenv';
-dotenv.config({ path: '../Prover.toml' });
-""
+
 // Loading circuit
 import circuit from "../target/webauthn.json";
 
