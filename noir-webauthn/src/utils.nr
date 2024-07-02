@@ -36,6 +36,25 @@ pub fn concatenate_arrays(a: [u8; 37], b: [u8; 32]) -> [u8; 69] {
     result
 }
 
+pub fn check_pubkey_matches_identity(pub_key_x: [u8; 32], pub_key_y: [u8; 32], identity: str<46>) {
+    // Compute the publickey as concatenation of pub_key_x and pub_key_y
+    let mut pub_key = [0; 64];
+    for i in 0..32 {
+        pub_key[i] = pub_key_x[i];
+    }
+    for j in 0..32 {
+        pub_key[j+32] = pub_key_y[j];
+    }
+    // Compute the address as the hash of the publickey
+    let address: [u8; 32] = std::hash::sha256(pub_key);
+
+    // identity is the last 20bytes of the address.
+    // Assert that there is a match between identity provided and identity computed from pubkeys
+    for k in 0..20 {
+        assert(address[12 + k] == identity.from_hex_to_uint_slice(2*k, 2*k + 2) as u8);
+    }
+}
+
 
 fn prefix<N, M>(input: [u8; N], mut result: [u8; M]) -> [u8; M] {
     for i in 0..M {
