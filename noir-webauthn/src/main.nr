@@ -23,7 +23,7 @@ fn main(
     next_state_len: pub u32,
     next_state: pub [u8; 4],
     identity_len: pub u8,
-    identity: pub str<46>,
+    identity: pub str<56>,
     tx_hash_len: pub u32,
     tx_hash: pub [u8; 43],
     program_outputs: pub ProgramOutputs
@@ -45,7 +45,7 @@ fn main(
     
     assert(valid_signature);
     assert(tx_hash_len == 43);
-    assert(identity_len == 46);
+    assert(identity_len == 56);
 }
 
 
@@ -81,8 +81,8 @@ fn test_webauthn_verification_from_vibe_checker_134() {
     let initial_state = [0, 0, 0, 0];
     let next_state_len = 1;
     let next_state = [0, 0, 0, 0];
-    let identity_len = 46;
-    let identity = "c59b18d3bdaccb4d689048559a9bb6e8265293bf.ecdsa";
+    let identity_len = 56;
+    let identity = "c59b18d3bdaccb4d689048559a9bb6e8265293bf.ecdsa_secp256r1";
     let tx_hash_len = 43;
     let tx_hash = challenge;
 
@@ -126,8 +126,8 @@ fn test_webauthn_verification_from_vibe_checker_243() {
     let initial_state = [0, 0, 0, 0];
     let next_state_len = 1;
     let next_state = [0, 0, 0, 0];
-    let identity_len = 46;
-    let identity = "3f368bf90c71946fc7b0cde9161ace42985d235f.ecdsa";
+    let identity_len = 56;
+    let identity = "3f368bf90c71946fc7b0cde9161ace42985d235f.ecdsa_secp256r1";
     let tx_hash_len = 43;
     let tx_hash = challenge;
 
@@ -171,8 +171,8 @@ fn test_webauthn_verification_from_vibe_checker_243_bis() {
     let initial_state = [0, 0, 0, 0];
     let next_state_len = 1;
     let next_state = [0, 0, 0, 0];
-    let identity_len = 46;
-    let identity = "ae0e5100ea7d28905ce690194c0717cd93756a20.ecdsa";
+    let identity_len = 56;
+    let identity = "ae0e5100ea7d28905ce690194c0717cd93756a20.ecdsa_secp256r1";
     let tx_hash_len = 43;
     let tx_hash = challenge;
 

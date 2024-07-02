@@ -36,7 +36,7 @@ pub fn concatenate_arrays(a: [u8; 37], b: [u8; 32]) -> [u8; 69] {
     result
 }
 
-pub fn check_pubkey_matches_identity(pub_key_x: [u8; 32], pub_key_y: [u8; 32], identity: str<46>) {
+pub fn check_pubkey_matches_identity(pub_key_x: [u8; 32], pub_key_y: [u8; 32], identity: str<56>) {
     // Compute the publickey as concatenation of pub_key_x and pub_key_y
     let mut pub_key = [0; 64];
     for i in 0..32 {
