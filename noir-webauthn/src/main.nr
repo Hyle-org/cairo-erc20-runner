@@ -2,7 +2,7 @@ mod utils;
 
 use dep::std;
 use dep::std::println;
-use crate::utils::{prefix_sha256_hash, concatenate_arrays, verify_identity};
+use crate::utils::{prefix_sha256_hash, concatenate_arrays, check_pubkey_matches_identity};
 
 global CLIENT_DATA_JSON_LEN = 255;
 
@@ -33,7 +33,7 @@ fn main(
     let hashed_data = std::hash::sha256(concat);
 
     // Verifying pub_key matches the identity
-    verify_identity(program_outputs.pub_key_x, program_outputs.pub_key_y, identity);
+    check_pubkey_matches_identity(program_outputs.pub_key_x, program_outputs.pub_key_y, identity);
 
 
     // The txhash IS the challenge
