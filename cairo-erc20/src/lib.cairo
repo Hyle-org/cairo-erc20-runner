@@ -61,8 +61,7 @@ struct HyleOutput {
     version: u32,
     initial_state: felt252,
     next_state: felt252,
-    origin: ByteArray,
-    caller: ByteArray,
+    identity: ByteArray,
     tx_hash: felt252,
     program_outputs: Event
 }
@@ -165,8 +164,7 @@ fn main(input: Array<felt252>) -> Array<felt252> {
         version: 1,
         initial_state: initial_state,
         next_state: computed_final_state,
-        origin: "",
-        caller: "",
+        identity: to,
         tx_hash: 0,
         program_outputs: event,
     };
