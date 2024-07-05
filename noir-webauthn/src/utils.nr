@@ -2,7 +2,7 @@ use dep::std;
 
 pub fn prefix_sha256_hash<N>(prefix_length: u8, input: [u8; N]) -> [u8; 32] {
     let mut result = [0; 32];
-    assert([1, 2, 3, 114, 134, 243].any(|x| x == prefix_length), "Length is not supported");
+    assert([1, 2, 3, 113, 114, 133, 134, 242, 243].any(|x| x == prefix_length), "Length is not supported");
     if prefix_length == 1 {
         result = std::hash::sha256(prefix(input, [0; 1]));
     }
@@ -13,21 +13,21 @@ pub fn prefix_sha256_hash<N>(prefix_length: u8, input: [u8; N]) -> [u8; 32] {
         result = std::hash::sha256(prefix(input, [0; 3]));
     }
     if prefix_length == 113 {
-        result = std::hash::sha256(prefix(input, [0; 114]));
+        result = std::hash::sha256(prefix(input, [0; 113]));
     }
     if prefix_length == 114 {
         result = std::hash::sha256(prefix(input, [0; 114]));
     }
     if prefix_length == 133 {
-        result = std::hash::sha256(prefix(input, [0; 134]));
+        result = std::hash::sha256(prefix(input, [0; 133]));
     }
     if prefix_length == 134 {
         result = std::hash::sha256(prefix(input, [0; 134]));
     }
-    if prefix_length == 243 {
-        result = std::hash::sha256(prefix(input, [0; 243]));
-    }
     if prefix_length == 242 {
+        result = std::hash::sha256(prefix(input, [0; 242]));
+    }
+    if prefix_length == 243 {
         result = std::hash::sha256(prefix(input, [0; 243]));
     }
     result
