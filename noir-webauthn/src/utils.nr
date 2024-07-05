@@ -12,13 +12,22 @@ pub fn prefix_sha256_hash<N>(prefix_length: u8, input: [u8; N]) -> [u8; 32] {
     if prefix_length == 3 {
         result = std::hash::sha256(prefix(input, [0; 3]));
     }
+    if prefix_length == 113 {
+        result = std::hash::sha256(prefix(input, [0; 114]));
+    }
     if prefix_length == 114 {
         result = std::hash::sha256(prefix(input, [0; 114]));
+    }
+    if prefix_length == 133 {
+        result = std::hash::sha256(prefix(input, [0; 134]));
     }
     if prefix_length == 134 {
         result = std::hash::sha256(prefix(input, [0; 134]));
     }
     if prefix_length == 243 {
+        result = std::hash::sha256(prefix(input, [0; 243]));
+    }
+    if prefix_length == 242 {
         result = std::hash::sha256(prefix(input, [0; 243]));
     }
     result
