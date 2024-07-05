@@ -8,21 +8,21 @@ struct HyleOutput {
     version: u32,
     initial_state: felt252,
     next_state: felt252,
-    origin: ByteArray,
-    caller: ByteArray,
+    identity: ByteArray,
     tx_hash: felt252,
     program_outputs: felt252
 }
 
 fn main(input: Array<felt252>) -> Array<felt252> {
-    let mut conv: Array<i32> = ArrayTrait::new();
-    let mut n = 1;
-    
-    // Extract the current state, first parameter
-    let initial_state_digest = input[0];
 
-    while n < input.len() {
-        let val:i32 =(*input[n]).try_into().unwrap(); 
+    let mut input = input.span();
+
+    let (initial_state, identity, image): (felt252, ByteArray, Array<felt252>) = Serde::deserialize(ref input).unwrap();
+    let mut conv: Array<i32> = ArrayTrait::new();
+    let mut n = 0;
+    
+    while n < image.len() {
+        let val:i32 =(*image[n]).try_into().unwrap();
         conv.append(val);
         n = n +1;
     };
@@ -268,10 +268,9 @@ fn main(input: Array<felt252>) -> Array<felt252> {
     // HyleOutput
     let hyle_output = HyleOutput {
         version: 1,
-        initial_state: initial_state_digest.clone(),
-        next_state: initial_state_digest.clone(),
-        origin: "",
-        caller: "",
+        initial_state: initial_state.clone(),
+        next_state: initial_state.clone(),
+        identity: identity,
         tx_hash: 0,
         program_outputs: result.into(),
     };
